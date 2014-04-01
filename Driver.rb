@@ -14,20 +14,21 @@ query = JSON.parse(open(friend_query).read)
 
 load_friends(query['friends'])
 
-user = User.where(name: query['name'], facebook_id: query['id']).first_or_create
+User.where(name: query['name'], facebook_id: query['id']).first_or_create
 
 User.all.each do |user|
   status_query = "https://graph.facebook.com/#{user_id}?access_token=#{access_token}&fields=id,name,friends.uid(#{user.facebook_id}).fields(name,statuses)"
-  get_statuses(user,JSON.parse(open(status_query).read)['friends']['data'].first)
+  get_statuses(user,(JSON.parse(open(status_query).read)['friends'] || [])['data'].first)
 end
+
+#statuses_without_likes = Status.pluck('id') - Like.select('status_id').uniq.pluck('status_id')
+
 BEGIN {
+
 def add_status(friend,status_data)
   status = Status.create(message: status_data['message'], user_id: friend.id)
   unless status_data['likes'].nil?
-    status_data['likes']['data'].each do |like_data|
-      liker = User.where(name: like_data['name'], facebook_id: like_data['id']).first
-      status.likes.create(user_id: liker.id) if liker
-    end
+    get_likes(status,status_data['likes']);
   end
 end
 
@@ -45,6 +46,14 @@ def get_statuses(friend,user_json)
     end
     status_info = content
   end
+end
+
+def get_likes(status,like_json)
+  like_json['data'].each do |like_data|
+    liker = User.where(facebook_id: like_data['id']).first
+    status.likes.create(user_id: liker.id) if liker
+  end
+  get_likes(status,JSON.parse(open(like_json['paging']['next']).read)) if like_json['paging']['next']
 end
 
 def load_friends(friend_json)

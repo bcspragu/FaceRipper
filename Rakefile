@@ -11,27 +11,7 @@ namespace :db do
       ActiveRecord::Base.connection.create_database config['database'], options
       ActiveRecord::Base.establish_connection config
     end
-
-    begin
-      create_db.call config
-    rescue Mysql::Error => sqlerr
-      if sqlerr.errno == 1405
-        print "#{sqlerr.error}. \nPlease provide the root password for your mysql installation\n>"
-        root_password = $stdin.gets.strip
-
-        grant_statement = <<-SQL
-          GRANT ALL PRIVILEGES ON #{config['database']}.* 
-            TO '#{config['username']}'@'localhost'
-            IDENTIFIED BY '#{config['password']}' WITH GRANT OPTION;
-        SQL
-
-        create_db.call config.merge('database' => nil, 'username' => 'root', 'password' => root_password)
-      else
-        $stderr.puts sqlerr.error
-        $stderr.puts "Couldn't create database for #{config.inspect}, charset: utf8, collation: utf8_unicode_ci"
-        $stderr.puts "(if you set the charset manually, make sure you have a matching collation)" if config['charset']
-      end
-    end
+    create_db.call config
   end
  
   task :environment do
@@ -54,7 +34,7 @@ namespace :db do
 
   desc 'Drops the database for the current DATABASE_ENV'
   task :drop => :configure_connection do
-    ActiveRecord::Base.connection.drop_database @config['database']
+    ActiveRecord::Base.connection.drop_database @config
   end
 
   desc 'Migrate the database (options: VERSION=x, VERBOSE=false).'
